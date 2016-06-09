@@ -1,11 +1,11 @@
+import { GraphDatabase } from 'neo4j'
+import * as firebase from 'firebase'
 
-import { GraphDatabase } from neo4j
-import firebase
+import { firebaseServiceConfig as firebaseConfig } from './config'
 
-import { firebaseConfig } from './config'
+firebase.initializeApp(firebaseConfig)
 
-firebase.intializeApp(firebaseConfig);
-const firedb = bfirebase.database()
+const firedb = firebase.database()
 
 // var firebase = require('firebase/app');
 // require('firebase/auth');
@@ -13,29 +13,40 @@ const firedb = bfirebase.database()
 // var app = firebase.intializeApp({ ... });
 // // ...
 
-const neodb = GraphDatabase('http://neo4j:p2Vjdkk@localhost:7474');
+const neodb = new GraphDatabase('http://neo4j:p2Vjdkk@localhost:7474')
 
 
-firedb.ref('connections').on('child_added', data =>
-  
-  const connData = data.values();
-  const fbids = data.key.split('facebook:')
+firedb.ref('connections').on('child_added', data => {
+
+  const connData = data.val()
+
+  // console.log('haschild:', data.hasChild())
+
+  const userKeys = data.key.split('::::')
   // const fbidA = `facebook:${fbids[1]}`
   // const fbidB = `facebook:${fbids[2]}`
+  console.log('Users connected:', userKeys)
 
-  const gotUser1 = new Promise((resolve, reject) => {
-    firedb.ref(`users/facebook:${fbids[1]}`).once('value', resolve)
+  const gotUser1 = new Promise((resolve) => {
+    firedb.ref(`users/${userKeys[0]}`).once('value', function(snapshot) {
+      resolve(snapshot)
+    })
   })
 
-  const gotUser2 = new Promise((resolve, reject) => {
-    firedb.ref(`users/facebook:${fbids[2]}`).once('value', resolve)
+  const gotUser2 = new Promise((resolve) => {
+    firedb.ref(`users/${userKeys[1]}`).once('value', function(snapshot) {
+      resolve(snapshot)
+    })
   })
+
 
   Promise.all([gotUser1, gotUser2])
 
-    .then((snapshot1, snapshot2)=> {
+    .then((snapshots) => {
+      const snapshot1 = snapshots[0].val()
+      const snapshot2 = snapshots[1].val()
 
-      neodb.cypher({ 
+      neodb.cypher({
         // Note that we do NOT use the template string literals to do var insertion
         // we use the `params` part of neo4j's client lib
         query: `MERGE (u1:User {id: {id1}})
@@ -59,17 +70,17 @@ firedb.ref('connections').on('child_added', data =>
           timestamp: connData.timestamp
         },
 
-      }, function (err, results) {
-        if (err) throw err;
-        var result = results[0];
+      }, function(err, results) {
+        console.log('cypher result return')
+        if (err) throw err
+        var result = results[0]
         if (!result) {
-          console.log('No user found.');
+          console.log('No user found.')
         } else {
-          var user = result['u'];
-          console.log(JSON.stringify(user, null, 4));
+          console.log(result)
         }
 
-      });
+      })
 
 
 
